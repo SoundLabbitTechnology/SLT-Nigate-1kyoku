@@ -1,5 +1,5 @@
 import path from 'path';
-import { createHttpApp } from './src/game/httpApp';
+import { createHttpApp } from './api/_lib/httpApp';
 
 const PORT = Number(process.env.PORT) || 3000;
 const app = createHttpApp();
