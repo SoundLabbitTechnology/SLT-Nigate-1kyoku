@@ -1,0 +1,6 @@
+{
+  "name": "バーチャル音楽部 - 苦手な1曲当てゲーム",
+  "description": "Google Meet画面共有対応。出題者が4曲から『実は苦手な1曲』を混ぜて出し、参加者が当てるリアルタイム音楽パーティゲーム。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
