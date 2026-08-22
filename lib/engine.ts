@@ -1,4 +1,4 @@
-import { RoomState, Player, Song, GamePhase, ClientMessage, Reaction } from '../src/types';
+import type { RoomState, Player, Song, GamePhase, ClientMessage, Reaction } from '../src/types';
 
 export interface RoomView {
   state: RoomState;
