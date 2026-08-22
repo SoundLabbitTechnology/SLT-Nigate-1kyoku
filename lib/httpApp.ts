@@ -1,6 +1,6 @@
 import express from 'express';
 import { activeRoomCount, applyClientMessage, createRoom, getRoomView } from './engine';
-import { ClientMessage } from '../../src/types';
+import { ClientMessage } from '../src/types';
 
 export function createHttpApp() {
   const app = express();

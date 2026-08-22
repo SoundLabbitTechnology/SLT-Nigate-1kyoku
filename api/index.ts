@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { activeRoomCount, applyClientMessage, createRoom, getRoomView } from './_lib/engine';
+import { activeRoomCount, applyClientMessage, createRoom, getRoomView } from '../lib/engine';
 import type { ClientMessage } from '../src/types';
 
 export const maxDuration = 60;
@@ -10,19 +10,39 @@ function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.end(JSON.stringify(body));
 }
 
-function pathSegments(req: IncomingMessage & { query?: Record<string, unknown> }): string[] {
-  const fromQuery = req.query?.path;
-  if (Array.isArray(fromQuery)) {
-    return fromQuery.map(String);
-  }
-  if (typeof fromQuery === 'string' && fromQuery.length > 0) {
-    return fromQuery.split('/').filter(Boolean);
+function originalPath(req: IncomingMessage & { query?: Record<string, unknown> }): string {
+  const headerPath =
+    req.headers['x-invoke-path'] ||
+    req.headers['x-matched-path'] ||
+    req.headers['x-vercel-original-url'] ||
+    req.headers['x-forwarded-uri'];
+  if (typeof headerPath === 'string' && headerPath.length > 0) {
+    return headerPath.split('?')[0];
   }
 
-  const raw = req.url || '/';
-  const pathname = raw.split('?')[0];
+  const resource = req.query?.resource ?? req.query?.__path ?? req.query?.path;
+  if (typeof resource === 'string' && resource.length > 0) {
+    return resource.startsWith('/') ? resource : `/${resource}`;
+  }
+  if (Array.isArray(resource) && resource.length > 0) {
+    return `/${resource.join('/')}`;
+  }
+
+  return (req.url || '/').split('?')[0];
+}
+
+function segmentsFrom(pathname: string): string[] {
   const trimmed = pathname.startsWith('/api') ? pathname.slice(4) : pathname;
   return trimmed.split('/').filter(Boolean);
+}
+
+function playerIdFrom(req: IncomingMessage & { query?: Record<string, unknown> }): string {
+  if (typeof req.query?.playerId === 'string') return req.query.playerId;
+  try {
+    return new URL(req.url || '/', 'http://localhost').searchParams.get('playerId') || '';
+  } catch {
+    return '';
+  }
 }
 
 function readBody(req: IncomingMessage): Promise<any> {
@@ -46,10 +66,12 @@ function readBody(req: IncomingMessage): Promise<any> {
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
-    const segments = pathSegments(req as IncomingMessage & { query?: Record<string, unknown> });
+    const reqWithQuery = req as IncomingMessage & { query?: Record<string, unknown> };
+    const pathname = originalPath(reqWithQuery);
+    const segments = segmentsFrom(pathname);
     const method = (req.method || 'GET').toUpperCase();
 
-    if (method === 'GET' && (segments.length === 0 || (segments.length === 1 && segments[0] === 'health'))) {
+    if (method === 'GET' && (segments.length === 0 || segments[0] === 'health')) {
       return sendJson(res, 200, { status: 'ok', activeRooms: activeRoomCount() });
     }
 
@@ -59,19 +81,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return sendJson(res, 200, { roomCode: createRoom(hostId) });
     }
 
-    if (segments[0] === 'rooms' && segments.length === 2) {
-      const code = segments[1];
-      if (method === 'GET') {
-        const query = (req as IncomingMessage & { query?: Record<string, unknown> }).query;
-        const playerFromQuery = typeof query?.playerId === 'string' ? query.playerId : '';
-        const url = new URL(req.url || '/', 'http://localhost');
-        const playerId = playerFromQuery || url.searchParams.get('playerId') || '';
-        const view = getRoomView(code, playerId);
-        if (!view) {
-          return sendJson(res, 404, { error: 'Room not found' });
-        }
-        return sendJson(res, 200, view);
+    if (method === 'GET' && segments[0] === 'rooms' && segments.length === 2) {
+      const view = getRoomView(segments[1], playerIdFrom(reqWithQuery));
+      if (!view) {
+        return sendJson(res, 404, { error: 'Room not found' });
       }
+      return sendJson(res, 200, view);
     }
 
     if (method === 'POST' && segments[0] === 'rooms' && segments[2] === 'action' && segments.length === 3) {
@@ -88,7 +103,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return sendJson(res, 200, result.view);
     }
 
-    return sendJson(res, 404, { error: 'Not found', method, segments });
+    return sendJson(res, 404, {
+      error: 'Not found',
+      method,
+      pathname,
+      segments,
+      url: req.url,
+    });
   } catch (err) {
     return sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
   }
