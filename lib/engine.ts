@@ -56,6 +56,19 @@ export function generateRoomCode(): string {
   return code;
 }
 
+function sanitizeSongUrl(raw: unknown): string {
+  const trimmed = typeof raw === 'string' ? raw.trim() : '';
+  if (!trimmed) return '';
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
 export function createRoom(hostId?: string): string {
   let code = generateRoomCode();
   while (rooms.has(code)) {
@@ -241,6 +254,7 @@ export function applyClientMessage(
         title: s.title || `楽曲 ${labels[idx]}`,
         artist: s.artist || 'アーティスト未定',
         comment: s.comment || '',
+        url: sanitizeSongUrl(s.url),
       }));
       room.currentRound.secretDislikedIndex = msg.secretDislikedIndex;
       room.currentRound.secretEpisode = msg.secretEpisode || '特に理由なし';

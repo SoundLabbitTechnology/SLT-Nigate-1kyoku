@@ -2,7 +2,7 @@ export interface SongPreset {
   id: string;
   theme: string;
   description: string;
-  songs: { title: string; artist: string; comment?: string }[];
+  songs: { title: string; artist: string; comment?: string; url?: string }[];
   dislikedSuggestionIndex?: number;
   sampleEpisode?: string;
 }

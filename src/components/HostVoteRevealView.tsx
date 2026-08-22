@@ -2,6 +2,7 @@ import React from 'react';
 import { Song, Player } from '../types';
 import { Sparkles, Users, Flame, Volume2, ArrowRight } from 'lucide-react';
 import { playClickSound, playDrumRoll } from '../utils/audio';
+import { SongLinkRow, SongLinksPanel } from './SongLinksPanel';
 
 interface HostVoteRevealViewProps {
   songs: Song[];
@@ -63,6 +64,8 @@ export const HostVoteRevealView: React.FC<HostVoteRevealViewProps> = ({
         </p>
       </div>
 
+      <SongLinksPanel songs={songs} compact />
+
       {/* 4 Song Panels with Revealed Voters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {songs.map((song, idx) => {
@@ -98,6 +101,7 @@ export const HostVoteRevealView: React.FC<HostVoteRevealViewProps> = ({
                 <h3 className="text-2xl sm:text-3xl font-[900] text-[#38312E] tracking-tight leading-tight mb-2 break-words">
                   {song.title}
                 </h3>
+                <SongLinkRow url={song.url} />
               </div>
 
               {/* Voters Roster for this Song */}

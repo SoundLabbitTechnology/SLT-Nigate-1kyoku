@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { Song, Player } from '../types';
 import { Sparkles, Trophy, Award, ArrowRight } from 'lucide-react';
 import { playSecretRevealSound, playFanfare, playClickSound } from '../utils/audio';
+import { SongLinkRow, SongLinksPanel } from './SongLinksPanel';
 
 interface HostSecretRevealViewProps {
   songs: Song[];
@@ -81,6 +82,8 @@ export const HostSecretRevealView: React.FC<HostSecretRevealViewProps> = ({
         </p>
       </div>
 
+      <SongLinksPanel songs={songs} compact />
+
       {/* 4 Songs Grid with Highlighted Secret Card */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {songs.map((song, idx) => {
@@ -133,6 +136,7 @@ export const HostSecretRevealView: React.FC<HostSecretRevealViewProps> = ({
                     {song.comment}
                   </div>
                 )}
+                <SongLinkRow url={song.url} />
               </div>
             </div>
           );

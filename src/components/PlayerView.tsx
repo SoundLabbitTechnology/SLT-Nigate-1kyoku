@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { playClickSound, playVoteSound, playFanfare } from '../utils/audio';
 import { PresenterSongForm } from './PresenterSongForm';
+import { SongLinksPanel } from './SongLinksPanel';
 
 interface PlayerViewProps {
   roomState: RoomState;
@@ -25,7 +26,7 @@ interface PlayerViewProps {
   isPresenter: boolean;
   myVotedSongIndex: number | null;
   onSubmitSongs: (
-    songs: { title: string; artist: string; comment?: string }[],
+    songs: { title: string; artist: string; comment?: string; url?: string }[],
     secretDislikedIndex: number,
     secretEpisode: string
   ) => void;
@@ -184,6 +185,8 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
               <div className="p-3 bg-[#ECE8DA] border-2 border-[#38312E] rounded-xl text-xs font-bold text-[#38312E]">
                 👥 参加者が推理して手元で投票中です。全員の投票が終わったら結果発表に移ります。
               </div>
+
+              <SongLinksPanel songs={currentRound.songs} compact />
             </div>
           ) : (
             /* If I am a Voter */

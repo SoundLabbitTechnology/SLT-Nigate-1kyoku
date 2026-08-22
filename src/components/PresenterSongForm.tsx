@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { SONG_PRESETS } from '../data/presets';
-import { Sparkles, Lock, ArrowRight } from 'lucide-react';
+import { Sparkles, Lock, ArrowRight, Link2 } from 'lucide-react';
 import { playClickSound } from '../utils/audio';
+import { sanitizeSongUrl } from '../utils/songLinks';
 
 interface PresenterSongFormProps {
   onSubmitSongs: (
-    songs: { title: string; artist: string; comment?: string }[],
+    songs: { title: string; artist: string; comment?: string; url?: string }[],
     secretDislikedIndex: number,
     secretEpisode: string
   ) => void;
@@ -13,10 +14,10 @@ interface PresenterSongFormProps {
 
 export const PresenterSongForm: React.FC<PresenterSongFormProps> = ({ onSubmitSongs }) => {
   const [songsInput, setSongsInput] = useState([
-    { title: '', artist: '', comment: '' },
-    { title: '', artist: '', comment: '' },
-    { title: '', artist: '', comment: '' },
-    { title: '', artist: '', comment: '' },
+    { title: '', artist: '', comment: '', url: '' },
+    { title: '', artist: '', comment: '', url: '' },
+    { title: '', artist: '', comment: '', url: '' },
+    { title: '', artist: '', comment: '', url: '' },
   ]);
   const [secretIndex, setSecretIndex] = useState<number>(0);
   const [secretEpisode, setSecretEpisode] = useState('');
@@ -27,7 +28,14 @@ export const PresenterSongForm: React.FC<PresenterSongFormProps> = ({ onSubmitSo
     const preset = SONG_PRESETS.find((p) => p.id === presetId);
     if (!preset) return;
     setSelectedPresetId(presetId);
-    setSongsInput(preset.songs.map((s) => ({ ...s })));
+    setSongsInput(
+      preset.songs.map((s) => ({
+        title: s.title,
+        artist: s.artist,
+        comment: s.comment || '',
+        url: s.url || '',
+      }))
+    );
     if (typeof preset.dislikedSuggestionIndex === 'number') {
       setSecretIndex(preset.dislikedSuggestionIndex);
     }
@@ -43,6 +51,7 @@ export const PresenterSongForm: React.FC<PresenterSongFormProps> = ({ onSubmitSo
       title: s.title.trim() || `楽曲 ${['A', 'B', 'C', 'D'][idx]}`,
       artist: s.artist.trim() || 'アーティスト未定',
       comment: s.comment.trim() || '',
+      url: sanitizeSongUrl(s.url),
     }));
     onSubmitSongs(validSongs, secretIndex, secretEpisode.trim() || '実は昔からなんとなく苦手でした！');
   };
@@ -134,6 +143,23 @@ export const PresenterSongForm: React.FC<PresenterSongFormProps> = ({ onSubmitSo
                   required
                 />
               </div>
+
+              <label className="block text-[10px] font-black text-[#38312E]/70 mb-1 flex items-center gap-1">
+                <Link2 size={12} className="text-[#FF8F66]" />
+                楽曲リンク（ホストがMeetで再生するために回収します）
+              </label>
+              <input
+                type="text"
+                inputMode="url"
+                placeholder="YouTube / Spotify などのリンク（任意）"
+                value={song.url}
+                onChange={(e) => {
+                  const next = [...songsInput];
+                  next[idx].url = e.target.value;
+                  setSongsInput(next);
+                }}
+                className="w-full text-[11px] bg-white border-2 border-[#38312E] rounded-lg p-2 font-bold mb-2"
+              />
 
               <input
                 type="text"

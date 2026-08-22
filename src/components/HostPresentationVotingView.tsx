@@ -3,6 +3,7 @@ import { Song, Player } from '../types';
 import { QRCodeSVG } from 'qrcode.react';
 import { Music, Volume2, ShieldCheck, ArrowRight, Bot, Users, Sparkles } from 'lucide-react';
 import { playClickSound, playVoteSound } from '../utils/audio';
+import { SongLinkRow, SongLinksPanel } from './SongLinksPanel';
 
 interface HostPresentationVotingViewProps {
   songs: Song[];
@@ -78,6 +79,7 @@ export const HostPresentationVotingView: React.FC<HostPresentationVotingViewProp
                         {song.comment}
                       </div>
                     )}
+                    <SongLinkRow url={song.url} />
                   </div>
 
                   {/* Footer Protection Note */}
@@ -154,6 +156,8 @@ export const HostPresentationVotingView: React.FC<HostPresentationVotingViewProp
               </p>
             </div>
           </div>
+
+          <SongLinksPanel songs={songs} compact />
 
           {/* Mini QR Join Block */}
           <div className="bg-[#F1EFE6] border-[3px] border-[#38312E] rounded-[20px] shadow-[5px_6px_0_#565550] p-4 flex items-center gap-4">

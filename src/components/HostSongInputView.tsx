@@ -7,7 +7,7 @@ interface HostSongInputViewProps {
   presenterAvatar: string;
   isSelfPresenter?: boolean;
   onSubmitSongs?: (
-    songs: { title: string; artist: string; comment?: string }[],
+    songs: { title: string; artist: string; comment?: string; url?: string }[],
     secretDislikedIndex: number,
     secretEpisode: string
   ) => void;

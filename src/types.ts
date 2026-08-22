@@ -24,6 +24,7 @@ export interface Song {
   title: string;
   artist: string;
   comment?: string;
+  url?: string;
   genre?: string;
 }
 
@@ -79,7 +80,7 @@ export type ClientMessage =
   | { type: 'join'; roomCode: string; playerId: string; name: string; avatar: string; isHost?: boolean }
   | { type: 'select_presenter'; presenterId: string }
   | { type: 'start_song_input' }
-  | { type: 'submit_songs'; songs: { title: string; artist: string; comment?: string }[]; secretDislikedIndex: number; secretEpisode: string }
+  | { type: 'submit_songs'; songs: { title: string; artist: string; comment?: string; url?: string }[]; secretDislikedIndex: number; secretEpisode: string }
   | { type: 'submit_vote'; songIndex: number }
   | { type: 'close_voting' }
   | { type: 'reveal_votes' }
