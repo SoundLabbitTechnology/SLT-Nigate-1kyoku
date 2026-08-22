@@ -1,5 +1,5 @@
 import React from 'react';
-import { Volume2, VolumeX, QrCode, Copy, Check, Radio } from 'lucide-react';
+import { Volume2, VolumeX, QrCode, Copy, Check, Power } from 'lucide-react';
 import { isSoundEnabled, toggleSound, playClickSound } from '../utils/audio';
 
 interface HeaderProps {
@@ -8,6 +8,7 @@ interface HeaderProps {
   connected: boolean;
   onOpenQR?: () => void;
   playerCount?: number;
+  onForceEnd?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,9 +17,11 @@ export const Header: React.FC<HeaderProps> = ({
   connected,
   onOpenQR,
   playerCount = 0,
+  onForceEnd,
 }) => {
   const [copied, setCopied] = React.useState(false);
   const [soundOn, setSoundOn] = React.useState(isSoundEnabled());
+  const [confirmForceEnd, setConfirmForceEnd] = React.useState(false);
 
   const handleCopy = () => {
     playClickSound();
@@ -120,6 +123,31 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
           </div>
+
+          {isHost && onForceEnd && (
+            <button
+              type="button"
+              onClick={() => {
+                playClickSound();
+                if (!confirmForceEnd) {
+                  setConfirmForceEnd(true);
+                  window.setTimeout(() => setConfirmForceEnd(false), 4000);
+                  return;
+                }
+                setConfirmForceEnd(false);
+                onForceEnd();
+              }}
+              title="進行中のゲームを終了してロビーに戻す"
+              className={`border-[3px] border-[#38312E] rounded-[12px] shadow-[4px_5px_0_#565550] px-3 sm:px-4 py-2.5 font-[900] text-xs sm:text-sm flex items-center gap-1.5 ${
+                confirmForceEnd
+                  ? 'bg-[#C4473A] text-white'
+                  : 'bg-[#F1EFE6] text-[#C4473A] hover:bg-[#F8D7D0]'
+              }`}
+            >
+              <Power size={16} />
+              <span>{confirmForceEnd ? 'もう一度押して終了' : '強制終了'}</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

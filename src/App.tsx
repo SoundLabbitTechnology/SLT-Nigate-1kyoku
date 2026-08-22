@@ -313,6 +313,7 @@ export default function App() {
 
   const handleResetGame = () => {
     sendMessage({ type: 'reset_game' });
+    setIsScoreboardOpen(false);
   };
 
   const handleSimulatePlayers = (count: number) => {
@@ -361,13 +362,14 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#E1DBC5] text-[#38312E] flex flex-col justify-between selection:bg-[#3EE0CF] selection:text-[#38312E]">
       {/* Top Header */}
-      <Header
-        roomCode={roomState.roomCode}
-        isHost={isHost}
-        connected={connected}
-        playerCount={roomState.players.length}
-        onOpenQR={() => setIsQRModalOpen(true)}
-      />
+        <Header
+          roomCode={roomState.roomCode}
+          isHost={isHost}
+          connected={connected}
+          playerCount={roomState.players.length}
+          onOpenQR={() => setIsQRModalOpen(true)}
+          onForceEnd={isHost && roomState.phase !== 'LOBBY' ? handleResetGame : undefined}
+        />
 
       {/* Main Content Area */}
       <main className="flex-1 p-4 sm:p-6 flex flex-col justify-center">
