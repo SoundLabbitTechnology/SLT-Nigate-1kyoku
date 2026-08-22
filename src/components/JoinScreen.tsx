@@ -9,6 +9,8 @@ interface JoinScreenProps {
   initialRole?: 'host' | 'player';
   onHostCreate: (hostName: string, avatar: string) => void;
   onPlayerJoin: (roomCode: string, playerName: string, avatar: string) => void;
+  error?: string | null;
+  busy?: boolean;
 }
 
 export const JoinScreen: React.FC<JoinScreenProps> = ({
@@ -16,6 +18,8 @@ export const JoinScreen: React.FC<JoinScreenProps> = ({
   initialRole,
   onHostCreate,
   onPlayerJoin,
+  error = null,
+  busy = false,
 }) => {
   const [tab, setTab] = useState<'player' | 'host'>(
     initialRole === 'host' ? 'host' : defaultRoomCode ? 'player' : 'player'
@@ -26,6 +30,7 @@ export const JoinScreen: React.FC<JoinScreenProps> = ({
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return;
     playClickSound();
     if (!name.trim()) return;
 
@@ -164,13 +169,25 @@ export const JoinScreen: React.FC<JoinScreenProps> = ({
 
           {/* Submit Button */}
           <div className="pt-2">
+            {error && (
+              <p className="mb-3 text-sm font-bold text-[#C4473A] bg-[#F8D7D0] border-2 border-[#38312E] rounded-xl px-3 py-2">
+                {error}
+              </p>
+            )}
             <button
               type="submit"
-              className={`w-full text-base py-3.5 font-black flex items-center justify-center gap-2 ${
+              disabled={busy}
+              className={`w-full text-base py-3.5 font-black flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-wait ${
                 tab === 'host' ? 'vmc-btn-coral' : 'vmc-btn-primary'
               }`}
             >
-              <span>{tab === 'host' ? 'ルームを作成してMeet画面を開く' : 'ルームに入室する'}</span>
+              <span>
+                {busy
+                  ? '接続中...'
+                  : tab === 'host'
+                    ? 'ルームを作成してMeet画面を開く'
+                    : 'ルームに入室する'}
+              </span>
               <ArrowRight size={18} />
             </button>
           </div>

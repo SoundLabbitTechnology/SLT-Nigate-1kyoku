@@ -18,6 +18,15 @@ import { PlayerView } from './components/PlayerView';
 import { FloatingReactions } from './components/FloatingReactions';
 import { playClickSound, playVoteSound } from './utils/audio';
 
+function generateLocalRoomCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
 export default function App() {
   // Session & Identity
   const [playerId, setPlayerId] = useState<string>(() => {
@@ -57,6 +66,8 @@ export default function App() {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isScoreboardOpen, setIsScoreboardOpen] = useState(false);
   const [activeReactions, setActiveReactions] = useState<Reaction[]>([]);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [joinBusy, setJoinBusy] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -96,7 +107,7 @@ export default function App() {
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
+    const wsUrl = `${protocol}//${window.location.host}/api`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -118,6 +129,8 @@ export default function App() {
         const msg: ServerMessage = JSON.parse(event.data);
         if (msg.type === 'room_state') {
           setRoomState(msg.state);
+          setJoinError(null);
+          setJoinBusy(false);
           if (typeof msg.isPresenterForThisClient === 'boolean') {
             setIsPresenterForThisClient(msg.isPresenterForThisClient);
           }
@@ -162,16 +175,38 @@ export default function App() {
     };
   }, [connectWebSocket, roomCode, playerName]);
 
+  useEffect(() => {
+    if (!roomCode || !playerName || roomState) return;
+    const timeoutId = window.setTimeout(() => {
+      setJoinError('サーバーに接続できません。API / WebSocket が起動しているか確認してください。');
+      setJoinBusy(false);
+    }, 8000);
+    return () => window.clearTimeout(timeoutId);
+  }, [roomCode, playerName, roomState]);
+
   // Host Action: Create Room
   const handleHostCreate = async (hostName: string, avatar: string) => {
+    setJoinBusy(true);
+    setJoinError(null);
     try {
-      const res = await fetch('/api/rooms/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hostId: playerId }),
-      });
-      const data = await res.json();
-      const newRoomCode = data.roomCode;
+      let newRoomCode = '';
+      try {
+        const res = await fetch('/api/rooms/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hostId: playerId }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          newRoomCode = data.roomCode;
+        }
+      } catch {
+        // Fall back to a client-generated code; WebSocket join still creates the room.
+      }
+
+      if (!newRoomCode) {
+        newRoomCode = generateLocalRoomCode();
+      }
 
       setPlayerName(hostName);
       setPlayerAvatar(avatar);
@@ -183,16 +218,19 @@ export default function App() {
       sessionStorage.setItem('vmc_is_host', 'true');
       sessionStorage.setItem('vmc_room_code', newRoomCode);
 
-      // Update URL search params
       const newUrl = `${window.location.pathname}?room=${newRoomCode}&role=host`;
       window.history.pushState({}, '', newUrl);
     } catch (err) {
       console.error('Failed to create room:', err);
+      setJoinError('ルームを作成できませんでした。もう一度試してください。');
+      setJoinBusy(false);
     }
   };
 
   // Player Action: Join Room
   const handlePlayerJoin = (targetCode: string, name: string, avatar: string) => {
+    setJoinBusy(true);
+    setJoinError(null);
     setPlayerName(name);
     setPlayerAvatar(avatar);
     setIsHost(false);
@@ -273,6 +311,8 @@ export default function App() {
             initialRole={isHost ? 'host' : undefined}
             onHostCreate={handleHostCreate}
             onPlayerJoin={handlePlayerJoin}
+            error={joinError}
+            busy={joinBusy || (!!roomCode && !!playerName && !roomState)}
           />
         </main>
       </div>

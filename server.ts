@@ -2,7 +2,6 @@ import express from 'express';
 import http from 'http';
 import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
-import { createServer as createViteServer } from 'vite';
 import { RoomState, Player, Song, GamePhase, ClientMessage, ServerMessage, Reaction } from './src/types';
 
 interface InternalRoom {
@@ -167,19 +166,18 @@ function broadcastReaction(room: InternalRoom, reaction: Reaction) {
   });
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
-  const server = http.createServer(app);
+const isVercel = !!process.env.VERCEL;
+const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json());
+const app = express();
+const server = http.createServer(app);
 
-  // API Endpoints
-  app.get('/api/health', (req, res) => {
+function mountApiRoutes(router: express.Router) {
+  router.get('/health', (_req, res) => {
     res.json({ status: 'ok', activeRooms: rooms.size });
   });
 
-  app.post('/api/rooms/create', (req, res) => {
+  router.post('/rooms/create', (req, res) => {
     let code = generateRoomCode();
     while (rooms.has(code)) {
       code = generateRoomCode();
@@ -189,7 +187,7 @@ async function startServer() {
     res.json({ roomCode: room.roomCode });
   });
 
-  app.get('/api/rooms/:code', (req, res) => {
+  router.get('/rooms/:code', (req, res) => {
     const code = req.params.code.toUpperCase();
     const room = rooms.get(code);
     if (!room) {
@@ -198,9 +196,17 @@ async function startServer() {
     const playerId = (req.query.playerId as string) || '';
     res.json({ state: sanitizeRoomStateForPlayer(room, playerId) });
   });
+}
 
-  // WebSocket Server
-  const wss = new WebSocketServer({ server });
+app.use(express.json());
+
+// Vercel rewrites /api/* onto this function; local dev uses the same /api prefix.
+const apiRouter = express.Router();
+mountApiRoutes(apiRouter);
+app.use('/api', apiRouter);
+mountApiRoutes(app);
+
+const wss = new WebSocketServer({ server });
 
   wss.on('connection', (ws: WebSocket) => {
     let currentRoomCode: string | null = null;
@@ -554,24 +560,39 @@ async function startServer() {
     });
   });
 
-  // Vite middleware for development vs static build in production
+async function attachFrontend() {
+  if (isVercel) {
+    return;
+  }
+
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    return;
   }
 
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Virtual Music Club server running on port ${PORT}`);
+  const distPath = path.join(process.cwd(), 'dist');
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
   });
 }
 
-startServer();
+if (!isVercel) {
+  attachFrontend()
+    .then(() => {
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`Virtual Music Club server running on port ${PORT}`);
+      });
+    })
+    .catch((err) => {
+      console.error('Failed to start local server:', err);
+      process.exit(1);
+    });
+}
+
+export default server;
