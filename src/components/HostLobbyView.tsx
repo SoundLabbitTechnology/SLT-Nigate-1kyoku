@@ -23,7 +23,8 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
   const [selectedPresenterId, setSelectedPresenterId] = React.useState<string>('');
 
   const joinUrl = `${window.location.origin}?room=${roomCode}&role=player`;
-  const nonHostPlayers = players.filter((p) => p.connected);
+  const guestPlayers = players.filter((p) => !p.isHost && p.connected);
+  const presenterCandidates = guestPlayers.length > 0 ? guestPlayers : players.filter((p) => p.connected);
 
   const handleCopy = () => {
     playClickSound();
@@ -39,9 +40,9 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
   };
 
   const handleRandomPresenter = () => {
-    if (nonHostPlayers.length === 0) return;
-    const randomIndex = Math.floor(Math.random() * nonHostPlayers.length);
-    const chosen = nonHostPlayers[randomIndex];
+    if (presenterCandidates.length === 0) return;
+    const randomIndex = Math.floor(Math.random() * presenterCandidates.length);
+    const chosen = presenterCandidates[randomIndex];
     handleStartWithPresenter(chosen.id);
   };
 
@@ -240,7 +241,9 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
               <button
                 disabled={players.length === 0}
                 onClick={() => {
-                  const target = selectedPresenterId || (players[0] ? players[0].id : '');
+                  const target =
+                    selectedPresenterId ||
+                    (presenterCandidates[0] ? presenterCandidates[0].id : '');
                   if (target) handleStartWithPresenter(target);
                 }}
                 className="bg-[#3EE0CF] hover:bg-[#32cebd] text-[#38312E] border-[3px] border-[#38312E] rounded-[12px] shadow-[4px_5px_0_#565550] w-full sm:flex-1 text-base py-3.5 font-[900] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
@@ -261,7 +264,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
               </button>
             </div>
             <p className="text-center text-xs text-[#38312E]/70 font-bold">
-              ※ ゲームが始まると、出題者のスマホ画面に4曲の入力フォームが表示されます
+              ※ 出題者のスマホに4曲の入力フォームが出ます。ホスト自身を出題者にすると、この画面で入力できます
             </p>
           </div>
         </div>

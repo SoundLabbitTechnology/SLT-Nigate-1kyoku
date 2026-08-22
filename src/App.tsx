@@ -388,6 +388,8 @@ export default function App() {
               <HostSongInputView
                 presenterName={roomState.currentRound.presenterName}
                 presenterAvatar={roomState.currentRound.presenterAvatar}
+                isSelfPresenter={isPresenterForThisClient}
+                onSubmitSongs={handleSubmitSongs}
               />
             )}
 
