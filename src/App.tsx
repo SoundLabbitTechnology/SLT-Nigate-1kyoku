@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { RoomState, ClientMessage, ServerMessage, Reaction } from './types';
+import { RoomState, ClientMessage, Reaction } from './types';
 import { Header } from './components/Header';
 import { JoinScreen } from './components/JoinScreen';
 import { QRCodeModal } from './components/QRCodeModal';
@@ -68,9 +68,7 @@ export default function App() {
   const [activeReactions, setActiveReactions] = useState<Reaction[]>([]);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinBusy, setJoinBusy] = useState(false);
-
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const seenReactionIds = useRef<Set<string>>(new Set());
 
   // Check URL query parameters for initial setup
   useEffect(() => {
@@ -91,94 +89,132 @@ export default function App() {
     }
   }, []);
 
-  // Send message through WebSocket helper
-  const sendMessage = useCallback((msg: ClientMessage) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(msg));
-    }
-  }, []);
-
-  // Connect to WebSocket server
-  const connectWebSocket = useCallback(() => {
-    if (!roomCode || !playerName) return;
-
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api`;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
+  const applyView = useCallback(
+    (view: {
+      state: RoomState;
+      isPresenterForThisClient: boolean;
+      myVotedSongIndex: number | null;
+    }) => {
+      setRoomState(view.state);
+      setIsPresenterForThisClient(view.isPresenterForThisClient);
+      setMyVotedSongIndex(view.myVotedSongIndex);
       setConnected(true);
-      const joinMsg: ClientMessage = {
-        type: 'join',
-        roomCode,
-        playerId,
-        name: playerName,
-        avatar: playerAvatar,
-        isHost,
-      };
-      ws.send(JSON.stringify(joinMsg));
-    };
+      setJoinError(null);
+      setJoinBusy(false);
 
-    ws.onmessage = (event) => {
+      const fresh = view.state.reactions.filter((reaction) => !seenReactionIds.current.has(reaction.id));
+      if (fresh.length > 0) {
+        fresh.forEach((reaction) => seenReactionIds.current.add(reaction.id));
+        setActiveReactions((prev) => [...prev, ...fresh]);
+        window.setTimeout(() => {
+          setActiveReactions((prev) => prev.filter((r) => !fresh.some((f) => f.id === r.id)));
+        }, 2500);
+      }
+    },
+    []
+  );
+
+  const sendMessage = useCallback(
+    async (msg: ClientMessage) => {
+      if (!roomCode) return;
       try {
-        const msg: ServerMessage = JSON.parse(event.data);
-        if (msg.type === 'room_state') {
-          setRoomState(msg.state);
-          setJoinError(null);
-          setJoinBusy(false);
-          if (typeof msg.isPresenterForThisClient === 'boolean') {
-            setIsPresenterForThisClient(msg.isPresenterForThisClient);
-          }
-          if (typeof msg.myVotedSongIndex !== 'undefined') {
-            setMyVotedSongIndex(msg.myVotedSongIndex);
-          }
-        } else if (msg.type === 'reaction_broadcast') {
-          setActiveReactions((prev) => [...prev, msg.reaction]);
-          setTimeout(() => {
-            setActiveReactions((prev) => prev.filter((r) => r.id !== msg.reaction.id));
-          }, 2500);
+        const res = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId, message: msg }),
+        });
+        if (!res.ok) {
+          throw new Error(`action ${res.status}`);
+        }
+        const view = await res.json();
+        if (view?.state) {
+          applyView(view);
         }
       } catch (err) {
-        console.error('Error parsing WS message:', err);
+        console.warn('Failed to send action:', err);
+        setConnected(false);
       }
-    };
-
-    ws.onclose = () => {
-      setConnected(false);
-      // Auto-reconnect after 2 seconds
-      reconnectTimeoutRef.current = setTimeout(() => {
-        connectWebSocket();
-      }, 2000);
-    };
-
-    ws.onerror = (err) => {
-      console.warn('WebSocket connection error:', err);
-    };
-  }, [roomCode, playerName, playerAvatar, playerId, isHost]);
+    },
+    [applyView, playerId, roomCode]
+  );
 
   useEffect(() => {
-    if (roomCode && playerName) {
-      connectWebSocket();
-    }
-    return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (wsRef.current) {
-        wsRef.current.close();
+    if (!roomCode || !playerName) return;
+
+    let cancelled = false;
+    let timer: number | null = null;
+
+    const tick = async () => {
+      try {
+        const joinRes = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            playerId,
+            message: {
+              type: 'join',
+              roomCode,
+              playerId,
+              name: playerName,
+              avatar: playerAvatar,
+              isHost,
+            },
+          }),
+        });
+        if (!joinRes.ok) {
+          throw new Error(`join ${joinRes.status}`);
+        }
+        const joined = await joinRes.json();
+        if (!cancelled && joined?.state) {
+          applyView(joined);
+        }
+
+        const pollOnce = async () => {
+          if (cancelled) return;
+          try {
+            const res = await fetch(
+              `/api/rooms/${encodeURIComponent(roomCode)}?playerId=${encodeURIComponent(playerId)}`
+            );
+            if (!res.ok) {
+              throw new Error(`poll ${res.status}`);
+            }
+            const view = await res.json();
+            if (!cancelled && view?.state) {
+              applyView(view);
+            }
+          } catch (err) {
+            console.warn('Failed to poll room:', err);
+            if (!cancelled) setConnected(false);
+          }
+          if (!cancelled) {
+            timer = window.setTimeout(pollOnce, 800);
+          }
+        };
+
+        await pollOnce();
+      } catch (err) {
+        console.warn('Failed to join room:', err);
+        if (!cancelled) {
+          setConnected(false);
+          timer = window.setTimeout(() => {
+            void tick();
+          }, 1500);
+        }
       }
     };
-  }, [connectWebSocket, roomCode, playerName]);
+
+    void tick();
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [applyView, isHost, playerAvatar, playerId, playerName, roomCode]);
 
   useEffect(() => {
     if (!roomCode || !playerName || roomState) return;
     const timeoutId = window.setTimeout(() => {
-      setJoinError('サーバーに接続できません。API / WebSocket が起動しているか確認してください。');
+      setJoinError('サーバーに接続できません。少し待ってからもう一度試してください。');
       setJoinBusy(false);
     }, 8000);
     return () => window.clearTimeout(timeoutId);

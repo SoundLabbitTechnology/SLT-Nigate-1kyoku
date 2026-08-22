@@ -1,6 +1,10 @@
-import server from '../server';
+import { createHttpApp } from '../src/game/httpApp';
+import type { IncomingMessage, ServerResponse } from 'http';
 
-export const maxDuration = 300;
-export const runtime = 'nodejs';
+export const maxDuration = 60;
 
-export default server;
+const app = createHttpApp();
+
+export default function handler(req: IncomingMessage, res: ServerResponse) {
+  return app(req, res);
+}
