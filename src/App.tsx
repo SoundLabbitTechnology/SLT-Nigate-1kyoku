@@ -70,7 +70,6 @@ export default function App() {
   const [joinBusy, setJoinBusy] = useState(false);
   const seenReactionIds = useRef<Set<string>>(new Set());
   const roomStateRef = useRef<RoomState | null>(null);
-  roomStateRef.current = roomState;
 
   // Check URL query parameters for initial setup
   useEffect(() => {
@@ -97,6 +96,27 @@ export default function App() {
       isPresenterForThisClient: boolean;
       myVotedSongIndex: number | null;
     }) => {
+      const phaseOrder: RoomState['phase'][] = [
+        'LOBBY',
+        'SONG_INPUT',
+        'PRESENTATION_AND_VOTING',
+        'VOTE_REVEAL',
+        'SECRET_REVEAL',
+        'ROUND_END',
+      ];
+      const current = roomStateRef.current;
+      if (current && view.state.roomCode === current.roomCode) {
+        const incomingRound = view.state.currentRound?.roundNumber || 1;
+        const heldRound = current.currentRound?.roundNumber || 1;
+        if (incomingRound < heldRound) return;
+        if (
+          incomingRound === heldRound &&
+          phaseOrder.indexOf(view.state.phase) < phaseOrder.indexOf(current.phase)
+        ) {
+          return;
+        }
+      }
+      roomStateRef.current = view.state;
       setRoomState(view.state);
       setIsPresenterForThisClient(view.isPresenterForThisClient);
       setMyVotedSongIndex(view.myVotedSongIndex);
@@ -117,6 +137,7 @@ export default function App() {
   );
 
   const leaveRoomLocally = useCallback((error?: string) => {
+    roomStateRef.current = null;
     setRoomState(null);
     setRoomCode('');
     setIsHost(false);
@@ -141,10 +162,10 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playerId, message: msg }),
         });
+        const view = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(`action ${res.status}`);
+          throw new Error(typeof view?.error === 'string' ? view.error : `action ${res.status}`);
         }
-        const view = await res.json();
         if (view?.state) {
           applyView(view);
         }
@@ -176,7 +197,7 @@ export default function App() {
               name: playerName,
               avatar: playerAvatar,
               isHost,
-              snapshot: isHost ? roomStateRef.current || undefined : undefined,
+              snapshot: roomStateRef.current || undefined,
             },
           }),
         });
@@ -203,7 +224,7 @@ export default function App() {
                   name: playerName,
                   avatar: playerAvatar,
                   isHost,
-                  snapshot: isHost ? roomStateRef.current || undefined : undefined,
+                  snapshot: roomStateRef.current || undefined,
                 },
               }),
             });

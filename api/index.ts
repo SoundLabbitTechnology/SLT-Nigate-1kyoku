@@ -461,7 +461,28 @@ function sanitizeRoomStateForPlayer(room: InternalRoom, playerId: string): RoomS
 
 function restoreSnapshot(room: InternalRoom, snapshot: RoomState | undefined, joinerId: string) {
   if (!snapshot || (snapshot.roomCode || '').toUpperCase() !== room.roomCode) return;
-  if (snapshot.phase) room.phase = snapshot.phase;
+  const phaseOrder: RoomState['phase'][] = [
+    'LOBBY',
+    'SONG_INPUT',
+    'PRESENTATION_AND_VOTING',
+    'VOTE_REVEAL',
+    'SECRET_REVEAL',
+    'ROUND_END',
+  ];
+  const snapRound = snapshot.currentRound?.roundNumber || 1;
+  const roomRound = room.currentRound.roundNumber || 1;
+  if (snapRound < roomRound) return;
+
+  const incomingRank = phaseOrder.indexOf(snapshot.phase);
+  const currentRank = phaseOrder.indexOf(room.phase);
+  const newerRound = snapRound > roomRound;
+  if (newerRound && snapshot.phase) {
+    room.phase = snapshot.phase;
+    room.currentRound = emptyRound();
+    room.currentRound.roundNumber = snapRound;
+  } else if (incomingRank > currentRank) {
+    room.phase = snapshot.phase;
+  }
   if (snapshot.hostId && !room.hostId) room.hostId = snapshot.hostId;
   if (Array.isArray(snapshot.players)) {
     for (const p of snapshot.players) {
@@ -488,7 +509,9 @@ function restoreSnapshot(room: InternalRoom, snapshot: RoomState | undefined, jo
     room.currentRound.presenterAvatar = round.presenterAvatar || '';
   }
   if (Array.isArray(round.songs) && round.songs.length > 0) {
-    room.currentRound.songs = round.songs;
+    if (newerRound || room.currentRound.songs.length === 0 || incomingRank >= currentRank) {
+      room.currentRound.songs = round.songs;
+    }
   }
   if (typeof round.secretDislikedIndex === 'number') {
     room.currentRound.secretDislikedIndex = round.secretDislikedIndex;
@@ -538,7 +561,7 @@ function applyClientMessage(
       }
       room = getOrCreateRoom(roomCode, playerId);
     }
-    if (msg.isHost) {
+    if (msg.snapshot) {
       restoreSnapshot(room, msg.snapshot, playerId);
     }
     const claimingHost = Boolean(msg.isHost) && (!room.hostId || room.hostId === playerId);
@@ -601,12 +624,16 @@ function applyClientMessage(
       break;
     }
     case 'submit_songs': {
+      const incoming = Array.isArray(msg.songs) ? msg.songs.slice(0, 4) : [];
+      if (incoming.length === 0) {
+        return { error: '楽曲データがありません', view: toRoomView(room, playerId) };
+      }
       const labels: ('A' | 'B' | 'C' | 'D')[] = ['A', 'B', 'C', 'D'];
-      room.currentRound.songs = msg.songs.map((s, idx) => ({
+      room.currentRound.songs = incoming.map((s, idx) => ({
         id: `song-${idx}`,
         index: idx,
-        label: labels[idx],
-        title: s.title || `楽曲 ${labels[idx]}`,
+        label: labels[idx] || 'A',
+        title: s.title || `楽曲 ${labels[idx] || idx + 1}`,
         artist: s.artist || 'アーティスト未定',
         comment: s.comment || '',
         url: sanitizeSongUrl(s.url),
