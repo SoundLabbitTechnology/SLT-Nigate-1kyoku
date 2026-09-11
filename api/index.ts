@@ -541,28 +541,41 @@ function pushReaction(room: InternalRoom, reaction: Reaction) {
   }
 }
 
+function getOrSeedRoom(
+  roomCode: string,
+  playerId: string,
+  snapshot: RoomState | undefined,
+  allowEmptyCreate: boolean
+): InternalRoom | undefined {
+  let room = rooms.get(roomCode);
+  if (room) {
+    if (snapshot) restoreSnapshot(room, snapshot, playerId);
+    return room;
+  }
+  if (!snapshot && !allowEmptyCreate) return undefined;
+  room = getOrCreateRoom(roomCode, playerId);
+  if (snapshot) restoreSnapshot(room, snapshot, playerId);
+  return room;
+}
+
 function applyClientMessage(
   playerId: string,
   msg: ClientMessage,
-  roomCodeHint?: string
-): { error?: string; view?: RoomView } {
+  roomCodeHint?: string,
+  extraSnapshot?: RoomState
+): { error?: string; view?: RoomView; closed?: boolean } {
   let roomCode =
     msg.type === 'join' ? msg.roomCode : roomCodeHint || '';
   roomCode = roomCode.toUpperCase().trim();
   if (!roomCode) {
     return { error: 'ルームコードがありません' };
   }
+  const snapshot = (msg.type === 'join' ? msg.snapshot : undefined) || extraSnapshot;
 
   if (msg.type === 'join') {
-    let room = rooms.get(roomCode);
+    const room = getOrSeedRoom(roomCode, playerId, snapshot, Boolean(msg.isHost));
     if (!room) {
-      if (!msg.isHost) {
-        return { error: 'ルームが見つかりません' };
-      }
-      room = getOrCreateRoom(roomCode, playerId);
-    }
-    if (msg.snapshot) {
-      restoreSnapshot(room, msg.snapshot, playerId);
+      return { error: 'ルームが見つかりません' };
     }
     const claimingHost = Boolean(msg.isHost) && (!room.hostId || room.hostId === playerId);
     if (claimingHost) {
@@ -594,7 +607,7 @@ function applyClientMessage(
     return { view: toRoomView(room, playerId) };
   }
 
-  const room = rooms.get(roomCode);
+  const room = getOrSeedRoom(roomCode, playerId, snapshot, false);
   if (!room) {
     return { error: 'ルームが見つかりません' };
   }
@@ -778,7 +791,7 @@ function applyClientMessage(
       room.currentRound.votes.delete(playerId);
       if (leavingIsHost) {
         rooms.delete(room.roomCode);
-        return { error: 'ルームを閉じました' };
+        return { closed: true };
       }
       break;
     }
@@ -902,8 +915,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       if (!playerId || !message?.type) {
         return sendJson(res, 400, { error: 'playerId と message が必要です' });
       }
-      const result = applyClientMessage(playerId, message, segments[1]);
+      const result = applyClientMessage(playerId, message, segments[1], body?.snapshot);
+      if (result.closed) {
+        return sendJson(res, 200, { closed: true });
+      }
       if (result.error && !result.view) {
+        console.log(`[${segments[1]}] ${message.type}: ${result.error}`);
         return sendJson(res, 400, { error: result.error });
       }
       return sendJson(res, 200, result.view);

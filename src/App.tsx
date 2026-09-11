@@ -160,7 +160,11 @@ export default function App() {
         const res = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/action`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, message: msg }),
+          body: JSON.stringify({
+            playerId,
+            message: msg,
+            snapshot: roomStateRef.current || undefined,
+          }),
         });
         const view = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -199,6 +203,7 @@ export default function App() {
               isHost,
               snapshot: roomStateRef.current || undefined,
             },
+            snapshot: roomStateRef.current || undefined,
           }),
         });
         if (!joinRes.ok) {
@@ -226,6 +231,7 @@ export default function App() {
                   isHost,
                   snapshot: roomStateRef.current || undefined,
                 },
+                snapshot: roomStateRef.current || undefined,
               }),
             });
             if (!res.ok) {

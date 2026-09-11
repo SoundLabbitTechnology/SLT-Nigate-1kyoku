@@ -54,8 +54,12 @@ export function createHttpApp() {
     if (!playerId || !message?.type) {
       return res.status(400).json({ error: 'playerId と message が必要です' });
     }
-    const result = applyClientMessage(playerId, message, req.params.code);
+    const result = applyClientMessage(playerId, message, req.params.code, req.body?.snapshot);
+    if (result.closed) {
+      return res.json({ closed: true });
+    }
     if (result.error && !result.view) {
+      console.log(`[${req.params.code}] ${message.type}: ${result.error}`);
       return res.status(400).json({ error: result.error });
     }
     res.json(result.view);
