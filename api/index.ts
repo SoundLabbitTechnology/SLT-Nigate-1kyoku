@@ -1,5 +1,6 @@
 ﻿import type { IncomingMessage, ServerResponse } from 'http';
 import type { RoomState, Player, Song, GamePhase, ClientMessage, Reaction } from '../src/types';
+import { importSpotifyPlaylistResponse } from '../lib/spotifyPlaylist';
 
 interface RoomView {
   state: RoomState;
@@ -465,6 +466,27 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
     if (method === 'GET' && (segments.length === 0 || segments[0] === 'health')) {
       return sendJson(res, 200, { status: 'ok', activeRooms: activeRoomCount() });
+    }
+
+    if (segments[0] === 'spotify' && segments[1] === 'playlist' && segments.length === 2) {
+      let rawUrl: unknown = '';
+      if (method === 'GET') {
+        rawUrl = reqWithQuery.query?.url;
+        if (!rawUrl) {
+          try {
+            rawUrl = new URL(req.url || '/', 'http://localhost').searchParams.get('url') || '';
+          } catch {
+            rawUrl = '';
+          }
+        }
+      } else if (method === 'POST') {
+        const body = await readBody(req);
+        rawUrl = body?.url;
+      } else {
+        return sendJson(res, 405, { error: 'Method not allowed' });
+      }
+      const result = await importSpotifyPlaylistResponse(rawUrl);
+      return sendJson(res, result.status, result.body);
     }
 
     if (method === 'POST' && segments[0] === 'rooms' && segments[1] === 'create' && segments.length === 2) {

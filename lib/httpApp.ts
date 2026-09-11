@@ -1,5 +1,6 @@
 import express from 'express';
 import { activeRoomCount, applyClientMessage, createRoom, getRoomView } from './engine';
+import { importSpotifyPlaylistResponse } from './spotifyPlaylist';
 import type { ClientMessage } from '../src/types';
 
 export function createHttpApp() {
@@ -10,6 +11,27 @@ export function createHttpApp() {
 
   api.get('/health', (_req, res) => {
     res.json({ status: 'ok', activeRooms: activeRoomCount() });
+  });
+
+  const handleSpotifyImport = async (rawUrl: unknown, res: express.Response) => {
+    const result = await importSpotifyPlaylistResponse(rawUrl);
+    res.status(result.status).json(result.body);
+  };
+
+  api.get('/spotify/playlist', async (req, res) => {
+    try {
+      await handleSpotifyImport(req.query.url, res);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  api.post('/spotify/playlist', async (req, res) => {
+    try {
+      await handleSpotifyImport(req.body?.url, res);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
   });
 
   api.post('/rooms/create', (req, res) => {
