@@ -188,7 +188,7 @@ export const HostLobbyView: React.FC<HostLobbyViewProps> = ({
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[320px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[480px] overflow-y-auto pr-1">
                 {players.map((player) => (
                   <div
                     key={player.id}

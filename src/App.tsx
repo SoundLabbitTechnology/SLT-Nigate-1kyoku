@@ -69,6 +69,8 @@ export default function App() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinBusy, setJoinBusy] = useState(false);
   const seenReactionIds = useRef<Set<string>>(new Set());
+  const roomStateRef = useRef<RoomState | null>(null);
+  roomStateRef.current = roomState;
 
   // Check URL query parameters for initial setup
   useEffect(() => {
@@ -174,16 +176,11 @@ export default function App() {
               name: playerName,
               avatar: playerAvatar,
               isHost,
+              snapshot: isHost ? roomStateRef.current || undefined : undefined,
             },
           }),
         });
         if (!joinRes.ok) {
-          if (joinRes.status === 400 || joinRes.status === 404) {
-            if (!cancelled) {
-              leaveRoomLocally('ルームが見つかりません。ホストが閉じた可能性があります。');
-            }
-            return;
-          }
           throw new Error(`join ${joinRes.status}`);
         }
         const joined = await joinRes.json();
@@ -194,16 +191,23 @@ export default function App() {
         const pollOnce = async () => {
           if (cancelled) return;
           try {
-            const res = await fetch(
-              `/api/rooms/${encodeURIComponent(roomCode)}?playerId=${encodeURIComponent(playerId)}`
-            );
+            const res = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/action`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                playerId,
+                message: {
+                  type: 'join',
+                  roomCode,
+                  playerId,
+                  name: playerName,
+                  avatar: playerAvatar,
+                  isHost,
+                  snapshot: isHost ? roomStateRef.current || undefined : undefined,
+                },
+              }),
+            });
             if (!res.ok) {
-              if (res.status === 404) {
-                if (!cancelled) {
-                  leaveRoomLocally('ホストがルームを閉じました。');
-                }
-                return;
-              }
               throw new Error(`poll ${res.status}`);
             }
             const view = await res.json();
@@ -237,7 +241,7 @@ export default function App() {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [applyView, isHost, leaveRoomLocally, playerAvatar, playerId, playerName, roomCode]);
+  }, [applyView, isHost, playerAvatar, playerId, playerName, roomCode]);
 
   useEffect(() => {
     if (!roomCode || !playerName || roomState) return;
@@ -434,9 +438,11 @@ export default function App() {
 
             {roomState.phase === 'PRESENTATION_AND_VOTING' && (
               <HostPresentationVotingView
+                roomCode={roomState.roomCode}
                 songs={roomState.currentRound.songs}
                 presenterName={roomState.currentRound.presenterName}
                 presenterAvatar={roomState.currentRound.presenterAvatar}
+                presenterId={roomState.currentRound.presenterId}
                 players={roomState.players}
                 votedPlayerIds={votedPlayerIds}
                 onCloseVoting={handleCloseVoting}

@@ -77,7 +77,7 @@ export interface RoomState {
 }
 
 export type ClientMessage =
-  | { type: 'join'; roomCode: string; playerId: string; name: string; avatar: string; isHost?: boolean }
+  | { type: 'join'; roomCode: string; playerId: string; name: string; avatar: string; isHost?: boolean; snapshot?: RoomState }
   | { type: 'select_presenter'; presenterId: string }
   | { type: 'start_song_input' }
   | { type: 'submit_songs'; songs: { title: string; artist: string; comment?: string; url?: string }[]; secretDislikedIndex: number; secretEpisode: string }

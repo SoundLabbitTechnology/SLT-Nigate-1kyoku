@@ -459,6 +459,58 @@ function sanitizeRoomStateForPlayer(room: InternalRoom, playerId: string): RoomS
   };
 }
 
+function restoreSnapshot(room: InternalRoom, snapshot: RoomState | undefined, joinerId: string) {
+  if (!snapshot || (snapshot.roomCode || '').toUpperCase() !== room.roomCode) return;
+  if (snapshot.phase) room.phase = snapshot.phase;
+  if (snapshot.hostId && !room.hostId) room.hostId = snapshot.hostId;
+  if (Array.isArray(snapshot.players)) {
+    for (const p of snapshot.players) {
+      if (!p?.id) continue;
+      const prev = room.players.get(p.id);
+      room.players.set(p.id, {
+        id: p.id,
+        name: p.name || prev?.name || 'メンバー',
+        avatar: p.avatar || prev?.avatar || '🎸',
+        isHost: p.id === room.hostId,
+        isPresenter: Boolean(p.isPresenter),
+        score: Math.max(prev?.score || 0, p.score || 0),
+        connected: p.id === joinerId ? true : Boolean(prev?.connected || p.connected),
+        lastActive: Date.now(),
+      });
+    }
+  }
+  const round = snapshot.currentRound;
+  if (!round) return;
+  if (round.roundNumber) room.currentRound.roundNumber = round.roundNumber;
+  if (round.presenterId) {
+    room.currentRound.presenterId = round.presenterId;
+    room.currentRound.presenterName = round.presenterName || '';
+    room.currentRound.presenterAvatar = round.presenterAvatar || '';
+  }
+  if (Array.isArray(round.songs) && round.songs.length > 0) {
+    room.currentRound.songs = round.songs;
+  }
+  if (typeof round.secretDislikedIndex === 'number') {
+    room.currentRound.secretDislikedIndex = round.secretDislikedIndex;
+  }
+  if (round.secretEpisode) room.currentRound.secretEpisode = round.secretEpisode;
+  if (round.votes && typeof round.votes === 'object') {
+    Object.entries(round.votes).forEach(([id, idx]) => {
+      if (typeof idx === 'number' && !room.currentRound.votes.has(id)) {
+        room.currentRound.votes.set(id, idx);
+      }
+    });
+  }
+  room.currentRound.votingClosed = Boolean(round.votingClosed) || room.currentRound.votingClosed;
+  room.currentRound.isSecretRevealed = Boolean(round.isSecretRevealed) || room.currentRound.isSecretRevealed;
+  if (Array.isArray(round.correctVoters) && round.correctVoters.length > 0) {
+    room.currentRound.correctVoters = round.correctVoters;
+  }
+  if (Array.isArray(snapshot.roundHistory) && snapshot.roundHistory.length > 0 && room.roundHistory.length === 0) {
+    room.roundHistory = snapshot.roundHistory;
+  }
+}
+
 function pushReaction(room: InternalRoom, reaction: Reaction) {
   room.reactions.push(reaction);
   if (room.reactions.length > 30) {
@@ -486,29 +538,36 @@ function applyClientMessage(
       }
       room = getOrCreateRoom(roomCode, playerId);
     }
+    if (msg.isHost) {
+      restoreSnapshot(room, msg.snapshot, playerId);
+    }
+    const claimingHost = Boolean(msg.isHost) && (!room.hostId || room.hostId === playerId);
+    if (claimingHost) {
+      room.hostId = playerId;
+    }
     const existingPlayer = room.players.get(playerId);
     if (existingPlayer) {
       existingPlayer.connected = true;
       existingPlayer.name = msg.name || existingPlayer.name;
       existingPlayer.avatar = msg.avatar || existingPlayer.avatar;
       existingPlayer.lastActive = Date.now();
-      if (msg.isHost) existingPlayer.isHost = true;
+      existingPlayer.isHost = claimingHost || existingPlayer.id === room.hostId;
     } else {
       const newPlayer: Player = {
         id: playerId,
         name: msg.name || `メンバー ${room.players.size + 1}`,
         avatar: msg.avatar || PRESET_AVATARS[room.players.size % PRESET_AVATARS.length],
-        isHost: msg.isHost || (room.players.size === 0 && !room.hostId),
+        isHost: claimingHost,
         isPresenter: false,
         score: 0,
         connected: true,
         lastActive: Date.now(),
       };
-      if (newPlayer.isHost && !room.hostId) {
-        room.hostId = playerId;
-      }
       room.players.set(playerId, newPlayer);
     }
+    room.players.forEach((p) => {
+      p.isHost = p.id === room.hostId;
+    });
     return { view: toRoomView(room, playerId) };
   }
 
@@ -652,7 +711,7 @@ function applyClientMessage(
     }
     case 'simulate_players': {
       const botNames = ['アオイ 🎸', 'レン 🎹', 'ユウキ 🎷', 'ミサト 🥁', 'タケシ 🎧', 'ソラ 🎤'];
-      const count = Math.min(msg.count || 3, 6);
+      const count = Math.min(msg.count || 3, 16);
       for (let i = 0; i < count; i++) {
         const botId = `bot-${i + 1}`;
         if (!room.players.has(botId)) {

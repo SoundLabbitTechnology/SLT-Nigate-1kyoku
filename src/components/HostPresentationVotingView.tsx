@@ -6,9 +6,11 @@ import { playClickSound, playVoteSound } from '../utils/audio';
 import { SongLinkRow, SongLinksPanel } from './SongLinksPanel';
 
 interface HostPresentationVotingViewProps {
+  roomCode: string;
   songs: Song[];
   presenterName: string;
   presenterAvatar: string;
+  presenterId?: string;
   players: Player[];
   votedPlayerIds: string[]; // only list of IDs who have voted, choice is secret!
   onCloseVoting: () => void;
@@ -16,16 +18,18 @@ interface HostPresentationVotingViewProps {
 }
 
 export const HostPresentationVotingView: React.FC<HostPresentationVotingViewProps> = ({
+  roomCode,
   songs,
   presenterName,
   presenterAvatar,
+  presenterId,
   players,
   votedPlayerIds,
   onCloseVoting,
   onSimulateVotes,
 }) => {
   // Non-presenter voters
-  const voters = players.filter((p) => p.name !== presenterName && !p.isHost);
+  const voters = players.filter((p) => (presenterId ? p.id !== presenterId : p.name !== presenterName));
   const eligibleVotersCount = voters.length > 0 ? voters.length : Math.max(players.length - 1, 1);
   const votedCount = votedPlayerIds.length;
   const progressPercent = Math.min(Math.round((votedCount / eligibleVotersCount) * 100), 100);
@@ -107,9 +111,9 @@ export const HostPresentationVotingView: React.FC<HostPresentationVotingViewProp
               </h3>
 
               {/* Roster list of voters */}
-              <div className="flex flex-col gap-2.5 max-h-[260px] overflow-y-auto pr-1">
+              <div className="flex flex-col gap-2.5 max-h-[420px] overflow-y-auto pr-1">
                 {players
-                  .filter((p) => p.name !== presenterName && !p.isHost)
+                  .filter((p) => (presenterId ? p.id !== presenterId : p.name !== presenterName && !p.isHost))
                   .map((player) => {
                     const hasVoted = votedPlayerIds.includes(player.id);
                     return (
@@ -163,7 +167,7 @@ export const HostPresentationVotingView: React.FC<HostPresentationVotingViewProp
           <div className="bg-[#F1EFE6] border-[3px] border-[#38312E] rounded-[20px] shadow-[5px_6px_0_#565550] p-4 flex items-center gap-4">
             <div className="w-18 h-18 bg-white border-[2px] border-[#38312E] p-1 rounded-xl flex items-center justify-center shrink-0 shadow-[2px_2px_0_#565550]">
               <QRCodeSVG
-                value={`${window.location.origin}?room=${players[0]?.id || 'VMC'}&role=player`}
+                value={`${window.location.origin}?room=${encodeURIComponent(roomCode)}&role=player`}
                 size={64}
                 bgColor="#FFFFFF"
                 fgColor="#38312E"
