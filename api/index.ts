@@ -479,7 +479,13 @@ function applyClientMessage(
   }
 
   if (msg.type === 'join') {
-    const room = getOrCreateRoom(roomCode, msg.isHost ? playerId : undefined);
+    let room = rooms.get(roomCode);
+    if (!room) {
+      if (!msg.isHost) {
+        return { error: 'ルームが見つかりません' };
+      }
+      room = getOrCreateRoom(roomCode, playerId);
+    }
     const existingPlayer = room.players.get(playerId);
     if (existingPlayer) {
       existingPlayer.connected = true;
@@ -676,6 +682,18 @@ function applyClientMessage(
     }
     case 'kick_player': {
       room.players.delete(msg.playerId);
+      room.currentRound.votes.delete(msg.playerId);
+      break;
+    }
+    case 'leave_room': {
+      const leaving = room.players.get(playerId);
+      const leavingIsHost = Boolean(leaving?.isHost) || room.hostId === playerId;
+      room.players.delete(playerId);
+      room.currentRound.votes.delete(playerId);
+      if (leavingIsHost) {
+        rooms.delete(room.roomCode);
+        return { error: 'ルームを閉じました' };
+      }
       break;
     }
   }

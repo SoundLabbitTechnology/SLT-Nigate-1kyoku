@@ -90,7 +90,8 @@ export type ClientMessage =
   | { type: 'send_reaction'; emoji: string }
   | { type: 'simulate_players'; count: number }
   | { type: 'simulate_votes' }
-  | { type: 'kick_player'; playerId: string };
+  | { type: 'kick_player'; playerId: string }
+  | { type: 'leave_room' };
 
 export type ServerMessage =
   | { type: 'room_state'; state: RoomState; isPresenterForThisClient?: boolean; myVotedSongIndex?: number | null }

@@ -6,6 +6,8 @@ const AVATARS = ['🎸', '🎹', '🎷', '🥁', '🎧', '🎤', '📻', '🎺',
 
 interface JoinScreenProps {
   defaultRoomCode?: string;
+  defaultName?: string;
+  defaultAvatar?: string;
   initialRole?: 'host' | 'player';
   onHostCreate: (hostName: string, avatar: string) => void;
   onPlayerJoin: (roomCode: string, playerName: string, avatar: string) => void;
@@ -15,6 +17,8 @@ interface JoinScreenProps {
 
 export const JoinScreen: React.FC<JoinScreenProps> = ({
   defaultRoomCode = '',
+  defaultName = '',
+  defaultAvatar,
   initialRole,
   onHostCreate,
   onPlayerJoin,
@@ -25,8 +29,8 @@ export const JoinScreen: React.FC<JoinScreenProps> = ({
     initialRole === 'host' ? 'host' : defaultRoomCode ? 'player' : 'player'
   );
   const [roomCode, setRoomCode] = useState(defaultRoomCode);
-  const [name, setName] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
+  const [name, setName] = useState(defaultName);
+  const [selectedAvatar, setSelectedAvatar] = useState(defaultAvatar || AVATARS[0]);
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();

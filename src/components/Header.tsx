@@ -1,5 +1,5 @@
 import React from 'react';
-import { Volume2, VolumeX, QrCode, Copy, Check, Power } from 'lucide-react';
+import { Volume2, VolumeX, QrCode, Copy, Check, Power, LogOut } from 'lucide-react';
 import { isSoundEnabled, toggleSound, playClickSound } from '../utils/audio';
 
 interface HeaderProps {
@@ -9,6 +9,7 @@ interface HeaderProps {
   onOpenQR?: () => void;
   playerCount?: number;
   onForceEnd?: () => void;
+  onLeaveRoom?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,10 +19,12 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenQR,
   playerCount = 0,
   onForceEnd,
+  onLeaveRoom,
 }) => {
   const [copied, setCopied] = React.useState(false);
   const [soundOn, setSoundOn] = React.useState(isSoundEnabled());
   const [confirmForceEnd, setConfirmForceEnd] = React.useState(false);
+  const [confirmLeave, setConfirmLeave] = React.useState(false);
 
   const handleCopy = () => {
     playClickSound();
@@ -146,6 +149,31 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Power size={16} />
               <span>{confirmForceEnd ? 'もう一度押して終了' : '強制終了'}</span>
+            </button>
+          )}
+
+          {isHost && onLeaveRoom && (
+            <button
+              type="button"
+              onClick={() => {
+                playClickSound();
+                if (!confirmLeave) {
+                  setConfirmLeave(true);
+                  window.setTimeout(() => setConfirmLeave(false), 4000);
+                  return;
+                }
+                setConfirmLeave(false);
+                onLeaveRoom();
+              }}
+              title="ルームを閉じて開始画面に戻る"
+              className={`border-[3px] border-[#38312E] rounded-[12px] shadow-[4px_5px_0_#565550] px-3 sm:px-4 py-2.5 font-[900] text-xs sm:text-sm flex items-center gap-1.5 ${
+                confirmLeave
+                  ? 'bg-[#38312E] text-white'
+                  : 'bg-[#F1EFE6] text-[#38312E] hover:bg-[#ECE8DA]'
+              }`}
+            >
+              <LogOut size={16} />
+              <span>{confirmLeave ? 'もう一度押して退出' : 'ルームを抜ける'}</span>
             </button>
           )}
         </div>

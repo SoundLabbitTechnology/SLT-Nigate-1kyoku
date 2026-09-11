@@ -114,6 +114,22 @@ export default function App() {
     []
   );
 
+  const leaveRoomLocally = useCallback((error?: string) => {
+    setRoomState(null);
+    setRoomCode('');
+    setIsHost(false);
+    setConnected(false);
+    setIsPresenterForThisClient(false);
+    setMyVotedSongIndex(null);
+    setJoinBusy(false);
+    setIsQRModalOpen(false);
+    setIsScoreboardOpen(false);
+    setJoinError(error || null);
+    sessionStorage.removeItem('vmc_room_code');
+    sessionStorage.setItem('vmc_is_host', 'false');
+    window.history.pushState({}, '', window.location.pathname);
+  }, []);
+
   const sendMessage = useCallback(
     async (msg: ClientMessage) => {
       if (!roomCode) return;
@@ -162,6 +178,12 @@ export default function App() {
           }),
         });
         if (!joinRes.ok) {
+          if (joinRes.status === 400 || joinRes.status === 404) {
+            if (!cancelled) {
+              leaveRoomLocally('ルームが見つかりません。ホストが閉じた可能性があります。');
+            }
+            return;
+          }
           throw new Error(`join ${joinRes.status}`);
         }
         const joined = await joinRes.json();
@@ -176,6 +198,12 @@ export default function App() {
               `/api/rooms/${encodeURIComponent(roomCode)}?playerId=${encodeURIComponent(playerId)}`
             );
             if (!res.ok) {
+              if (res.status === 404) {
+                if (!cancelled) {
+                  leaveRoomLocally('ホストがルームを閉じました。');
+                }
+                return;
+              }
               throw new Error(`poll ${res.status}`);
             }
             const view = await res.json();
@@ -209,7 +237,7 @@ export default function App() {
       cancelled = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [applyView, isHost, playerAvatar, playerId, playerName, roomCode]);
+  }, [applyView, isHost, leaveRoomLocally, playerAvatar, playerId, playerName, roomCode]);
 
   useEffect(() => {
     if (!roomCode || !playerName || roomState) return;
@@ -328,6 +356,12 @@ export default function App() {
     sendMessage({ type: 'kick_player', playerId: targetId });
   };
 
+  const handleLeaveRoom = () => {
+    void sendMessage({ type: 'leave_room' }).finally(() => {
+      leaveRoomLocally();
+    });
+  };
+
   const handleSendReaction = (emoji: string) => {
     sendMessage({ type: 'send_reaction', emoji });
   };
@@ -345,6 +379,8 @@ export default function App() {
         <main className="flex-1 flex items-center justify-center p-4">
           <JoinScreen
             defaultRoomCode={roomCode}
+            defaultName={playerName}
+            defaultAvatar={playerAvatar}
             initialRole={isHost ? 'host' : undefined}
             onHostCreate={handleHostCreate}
             onPlayerJoin={handlePlayerJoin}
@@ -369,6 +405,7 @@ export default function App() {
           playerCount={roomState.players.length}
           onOpenQR={() => setIsQRModalOpen(true)}
           onForceEnd={isHost && roomState.phase !== 'LOBBY' ? handleResetGame : undefined}
+          onLeaveRoom={isHost ? handleLeaveRoom : undefined}
         />
 
       {/* Main Content Area */}
